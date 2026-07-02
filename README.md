@@ -1,10 +1,11 @@
 # @detent/sdk
 
 [![CI](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@detent/sdk.svg)](https://www.npmjs.com/package/@detent/sdk)
 
 Typed TypeScript client for the [Detent](https://detent.dev) rate-limiting API.
 
-> Status: pre-release (v0.5.0).
+> Status: pre-1.0 — the API may change between minor versions until 1.0.0.
 
 ## Install
 
