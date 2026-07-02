@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "Typed TypeScript client for the Detent rate-limiting API.",
   "license": "MIT",
+  "keywords": ["rate-limit", "rate-limiter", "detent", "sdk", "api-client", "ratelimit"],
+  "homepage": "https://github.com/cguillerminet/detent-sdk-ts#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/cguillerminet/detent-sdk-ts.git" },
+  "bugs": { "url": "https://github.com/cguillerminet/detent-sdk-ts/issues" },
   "type": "module",
   "engines": { "node": ">=18" },
   "main": "./dist/index.cjs",
@@ -16,12 +20,14 @@
     }
   },
   "files": ["dist"],
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "gen:types": "tsx scripts/gen-types.ts"
+    "gen:types": "tsx scripts/gen-types.ts",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
