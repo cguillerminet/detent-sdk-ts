@@ -1,5 +1,5 @@
 import { DetentApiError, DetentTransportError } from './errors'
-import type { DetentConfig, FailMode } from './types'
+import type { DetentConfig, FailMode, LimitOptions, LimitResult } from './types'
 
 const DEFAULT_BASE_URL = 'https://api.detent.dev'
 const DEFAULT_TIMEOUT_MS = 1000
@@ -52,5 +52,27 @@ export class Detent {
     }
 
     return (await res.json()) as T
+  }
+
+  async limit(opts: LimitOptions): Promise<LimitResult> {
+    const body = {
+      namespace: opts.namespace,
+      key: opts.key,
+      ...(opts.algorithm !== undefined ? { algorithm: opts.algorithm } : {}),
+      ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+      ...(opts.windowMs !== undefined ? { window_ms: opts.windowMs } : {}),
+    }
+    try {
+      const w = await this.request<{ allowed: boolean; remaining: number; reset_ms: number; limit: number }>(
+        'POST', '/v1/limit', body,
+      )
+      return { allowed: w.allowed, remaining: w.remaining, resetMs: w.reset_ms, limit: w.limit, degraded: false }
+    } catch (err) {
+      if (err instanceof DetentTransportError) {
+        this.onError?.(err)
+        return { allowed: this.failMode === 'open', remaining: 0, resetMs: 0, limit: opts.limit ?? 0, degraded: true }
+      }
+      throw err // DetentApiError and anything else
+    }
   }
 }
