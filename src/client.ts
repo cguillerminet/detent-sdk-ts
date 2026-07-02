@@ -6,6 +6,7 @@ import type {
   AcquireOptions, AcquireResult, ReleaseResult,
   StatsOptions, StatsResult,
 } from './types'
+import type { components } from './generated/openapi'
 
 const DEFAULT_BASE_URL = 'https://api.detent.dev'
 const DEFAULT_TIMEOUT_MS = 1000
@@ -26,13 +27,12 @@ export class Detent {
     this.onError = config.onError
   }
 
-  /** Single HTTP choke point. 2xx → T; 4xx/5xx → DetentApiError; network/abort → DetentTransportError. */
+  /** Single HTTP choke point. 2xx → T; 4xx/5xx → DetentApiError; network/abort/body-stall → DetentTransportError. */
   protected async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
-    let res: Response
     try {
-      res = await fetch(`${this.baseUrl}${path}`, {
+      const res = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -41,23 +41,22 @@ export class Detent {
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       })
+      if (!res.ok) {
+        let parsed: { error: string }
+        try {
+          parsed = (await res.json()) as { error: string }
+        } catch {
+          parsed = { error: res.statusText || `HTTP ${res.status}` }
+        }
+        throw new DetentApiError(res.status, parsed)
+      }
+      return (await res.json()) as T
     } catch (cause) {
+      if (cause instanceof DetentApiError) throw cause
       throw new DetentTransportError('Detent request failed', cause)
     } finally {
       clearTimeout(timer)
     }
-
-    if (!res.ok) {
-      let parsed: { error: string }
-      try {
-        parsed = (await res.json()) as { error: string }
-      } catch {
-        parsed = { error: res.statusText || `HTTP ${res.status}` }
-      }
-      throw new DetentApiError(res.status, parsed)
-    }
-
-    return (await res.json()) as T
   }
 
   acquire(opts: AcquireOptions): Promise<AcquireResult> {
@@ -81,16 +80,16 @@ export class Detent {
       ...(opts.windowMs !== undefined ? { window_ms: opts.windowMs } : {}),
     }
     try {
-      const w = await this.request<{ allowed: boolean; remaining: number; reset_ms: number; limit: number }>(
+      const w = await this.request<components['schemas']['LimitResponse']>(
         'POST', '/v1/limit', body,
       )
       return { allowed: w.allowed, remaining: w.remaining, resetMs: w.reset_ms, limit: w.limit, degraded: false }
     } catch (err) {
-      if (err instanceof DetentTransportError) {
+      if (err instanceof DetentTransportError || (err instanceof DetentApiError && err.status >= 500)) {
         this.onError?.(err)
         return { allowed: this.failMode === 'open', remaining: 0, resetMs: 0, limit: opts.limit ?? 0, degraded: true }
       }
-      throw err // DetentApiError and anything else
+      throw err // 4xx client errors and anything else
     }
   }
 

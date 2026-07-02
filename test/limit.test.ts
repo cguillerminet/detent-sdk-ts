@@ -49,4 +49,26 @@ describe('limit()', () => {
     const rg = new Detent({ apiKey: 'x', failMode: 'open' })
     await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({ name: 'DetentApiError' })
   })
+
+  it('503 under failMode:open → degraded:true, allowed:true, onError called once', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'gateway error' }), { status: 503 })) as any)
+    const onError = vi.fn()
+    const rg = new Detent({ apiKey: 'x', failMode: 'open', onError })
+    const r = await rg.limit({ namespace: 'api', key: 'u1', limit: 10 })
+    expect(r).toMatchObject({ allowed: true, degraded: true })
+    expect(onError).toHaveBeenCalledOnce()
+  })
+
+  it('503 under failMode:closed → degraded:true, allowed:false', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'gateway error' }), { status: 503 })) as any)
+    const rg = new Detent({ apiKey: 'x', failMode: 'closed' })
+    const r = await rg.limit({ namespace: 'api', key: 'u1' })
+    expect(r).toMatchObject({ allowed: false, degraded: true })
+  })
+
+  it('400 still throws DetentApiError (4xx never degrades)', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'malformed' }), { status: 400 })) as any)
+    const rg = new Detent({ apiKey: 'x', failMode: 'open' })
+    await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({ name: 'DetentApiError', status: 400 })
+  })
 })

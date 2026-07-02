@@ -38,7 +38,7 @@ const stats = await rg.getStats({ namespace: 'api' })
 | `baseUrl`   | `https://api.detent.dev`   | Override for self-host / tests                    |
 | `timeoutMs` | `1000`                     | Client-side transport timeout                     |
 | `failMode`  | `'open'`                   | `'open'` allows, `'closed'` denies on transport error |
-| `onError`   | —                          | Called on transport error before fail-open/closed |
+| `onError`   | —                          | Called on transport errors and 5xx responses before fail-open/closed |
 
-`limit()` never throws on a transport error — it returns `{ degraded: true }`.
-API errors (401/403/404/400) throw `DetentApiError`.
+`limit()` never throws on a transport error or a 5xx server error — it returns `{ degraded: true }` and respects `failMode`.
+Only 4xx client errors (bad key, plan gate, unknown rule, malformed request) throw `DetentApiError`.

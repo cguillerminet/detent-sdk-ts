@@ -1,9 +1,10 @@
 import { DetentLeaseDeniedError } from './errors'
 import type { AcquireOptions, AcquireResult, ReleaseResult } from './types'
+import type { components } from './generated/openapi'
 
 type Requester = <T>(method: string, path: string, body?: unknown) => Promise<T>
 
-interface AcquireWire { allowed: boolean; lease_id?: string; active: number; limit: number; reset_ms: number }
+type AcquireWire = components['schemas']['AcquireResponse']
 
 export async function acquireLease(request: Requester, opts: AcquireOptions): Promise<AcquireResult> {
   const body = {
@@ -15,7 +16,7 @@ export async function acquireLease(request: Requester, opts: AcquireOptions): Pr
   const w = await request<AcquireWire>('POST', '/v1/leases', body)
   const result: AcquireResult = {
     allowed: w.allowed,
-    leaseId: w.lease_id,
+    leaseId: w.lease_id ?? undefined,
     active: w.active,
     limit: w.limit,
     resetMs: w.reset_ms,

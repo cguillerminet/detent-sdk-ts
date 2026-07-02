@@ -1,3 +1,5 @@
+import type { DetentError } from './errors'
+
 export type Algorithm = 'sliding_window' | 'token_bucket' | 'fixed_window'
 export type FailMode = 'open' | 'closed'
 
@@ -6,11 +8,8 @@ export interface DetentConfig {
   baseUrl?: string          // default 'https://api.detent.dev'
   timeoutMs?: number        // default 1000
   failMode?: FailMode       // default 'open'
-  onError?: (err: DetentTransportErrorLike) => void
+  onError?: (err: DetentError) => void
 }
-
-// Structural type to avoid an import cycle with errors.ts.
-export interface DetentTransportErrorLike { readonly cause: unknown }
 
 export interface LimitOptions {
   namespace: string
