@@ -1,5 +1,7 @@
 # @detent/sdk
 
+[![CI](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml)
+
 Typed TypeScript client for the [Detent](https://detent.dev) rate-limiting API.
 
 > Status: pre-release (v0.1.0).
