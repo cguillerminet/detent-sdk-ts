@@ -1,6 +1,6 @@
 {
   "name": "@detent/sdk",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Typed TypeScript client for the Detent rate-limiting API.",
   "license": "MIT",
   "keywords": [
@@ -31,7 +31,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
