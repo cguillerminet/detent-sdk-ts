@@ -1,0 +1,61 @@
+name: Release
+
+# Publishes @detent/sdk to npm when a version tag is pushed (e.g. `v0.5.2`).
+# Auth is tokenless via npm Trusted Publishing (OIDC) — no NPM_TOKEN secret.
+# One-time setup on npmjs.com: @detent/sdk → Settings → Trusted Publisher →
+# add repo `cguillerminet/detent-sdk-ts` with workflow `release.yml`.
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for npm Trusted Publishing + provenance
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    # Don't let forks attempt to publish under this name.
+    if: github.repository == 'cguillerminet/detent-sdk-ts'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Tokenless Trusted Publishing (OIDC) requires npm >= 11.5.1, newer than
+      # the npm bundled with Node 22.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package.json version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          echo "tag=$TAG package.json=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag $TAG does not match package.json version $PKG — bump package.json or fix the tag."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # `dist/` is rebuilt from source by the package's prepublishOnly hook.
+      # No NODE_AUTH_TOKEN — OIDC trusted publishing authenticates the publish.
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
