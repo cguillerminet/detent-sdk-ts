@@ -4,7 +4,7 @@
 
 Typed TypeScript client for the [Detent](https://detent.dev) rate-limiting API.
 
-> Status: pre-release (v0.1.0).
+> Status: pre-release (v0.5.0).
 
 ## Install
 
