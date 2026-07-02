@@ -1,8 +1,10 @@
 import { DetentApiError, DetentTransportError } from './errors'
 import { acquireLease, releaseLease, withLease } from './leases'
+import { getStats } from './stats'
 import type {
   DetentConfig, FailMode, LimitOptions, LimitResult,
   AcquireOptions, AcquireResult, ReleaseResult,
+  StatsOptions, StatsResult,
 } from './types'
 
 const DEFAULT_BASE_URL = 'https://api.detent.dev'
@@ -90,5 +92,9 @@ export class Detent {
       }
       throw err // DetentApiError and anything else
     }
+  }
+
+  getStats(opts: StatsOptions): Promise<StatsResult> {
+    return getStats(this.request.bind(this), opts)
   }
 }
