@@ -5,6 +5,40 @@ Typed TypeScript client for the [Detent](https://detent.dev) rate-limiting API.
 > Status: pre-release (v0.1.0).
 
 ## Install
+
 ```bash
 npm i @detent/sdk
 ```
+
+## Usage
+
+```ts
+import { Detent } from '@detent/sdk'
+
+const rg = new Detent({ apiKey: process.env.DETENT_API_KEY! })
+
+// Rate-limit check (always resolves; fails open by default on transport error)
+const { allowed } = await rg.limit({ namespace: 'api', key: userId })
+if (!allowed) return res.status(429).end()
+
+// Concurrent-limit lease
+await rg.withLease({ namespace: 'jobs', key: userId }, async () => {
+  await runExpensiveJob()
+})
+
+// Read-only usage stats
+const stats = await rg.getStats({ namespace: 'api' })
+```
+
+### Configuration
+
+| Option      | Default                    | Notes                                            |
+|-------------|----------------------------|--------------------------------------------------|
+| `apiKey`    | — (required)               | `rg_live_…` / `rg_test_…`                         |
+| `baseUrl`   | `https://api.detent.dev`   | Override for self-host / tests                    |
+| `timeoutMs` | `1000`                     | Client-side transport timeout                     |
+| `failMode`  | `'open'`                   | `'open'` allows, `'closed'` denies on transport error |
+| `onError`   | —                          | Called on transport error before fail-open/closed |
+
+`limit()` never throws on a transport error — it returns `{ degraded: true }`.
+API errors (401/403/404/400) throw `DetentApiError`.
