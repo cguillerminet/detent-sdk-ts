@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. rapid PR pushes).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The SDK targets Node 18+ (see package.json engines). Prove it holds
+        # across the supported majors.
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build (dual ESM + CJS)
+        run: npm run build
+
+  drift:
+    name: openapi types in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Regenerate the committed wire types from the OpenAPI snapshot and fail
+      # if they differ — the committed src/generated/openapi.ts must match
+      # openapi/detent.json so the compile-time drift guard stays honest.
+      - name: Regenerate types
+        run: npm run gen:types
+
+      - name: Verify generated types are committed and up to date
+        run: git diff --exit-code -- src/generated/openapi.ts
