@@ -1,5 +1,9 @@
 import { DetentApiError, DetentTransportError } from './errors'
-import type { DetentConfig, FailMode, LimitOptions, LimitResult } from './types'
+import { acquireLease, releaseLease, withLease } from './leases'
+import type {
+  DetentConfig, FailMode, LimitOptions, LimitResult,
+  AcquireOptions, AcquireResult, ReleaseResult,
+} from './types'
 
 const DEFAULT_BASE_URL = 'https://api.detent.dev'
 const DEFAULT_TIMEOUT_MS = 1000
@@ -52,6 +56,18 @@ export class Detent {
     }
 
     return (await res.json()) as T
+  }
+
+  acquire(opts: AcquireOptions): Promise<AcquireResult> {
+    return acquireLease(this.request.bind(this), opts)
+  }
+
+  release(leaseId: string): Promise<ReleaseResult> {
+    return releaseLease(this.request.bind(this), leaseId)
+  }
+
+  withLease<T>(opts: AcquireOptions, fn: () => Promise<T>): Promise<T> {
+    return withLease(this.request.bind(this), opts, fn)
   }
 
   async limit(opts: LimitOptions): Promise<LimitResult> {
