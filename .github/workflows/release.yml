@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write # create the GitHub Release
   id-token: write # OIDC token for npm Trusted Publishing + provenance
 
 jobs:
@@ -59,3 +59,20 @@ jobs:
       # No NODE_AUTH_TOKEN — OIDC trusted publishing authenticates the publish.
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
+
+      # Cut the matching GitHub Release (auto-generated notes from merged PRs).
+      # Runs only after a successful publish; idempotent on re-runs.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping."
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              --latest \
+              --verify-tag
+          fi
