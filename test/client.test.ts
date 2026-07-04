@@ -15,12 +15,12 @@ describe('Detent.request', () => {
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }) as any)
 
-    const rg = new Detent({ apiKey: 'rg_test_abc', baseUrl: 'https://api.example.com' })
+    const rg = new Detent({ apiKey: 'dt_test_abc', baseUrl: 'https://api.example.com' })
     const out = await (rg as any).request('POST', '/v1/limit', { namespace: 'n', key: 'k' })
 
     expect(out).toEqual({ ok: true })
     expect(captured!.url).toBe('https://api.example.com/v1/limit')
-    expect((captured!.init.headers as any).Authorization).toBe('Bearer rg_test_abc')
+    expect((captured!.init.headers as any).Authorization).toBe('Bearer dt_test_abc')
     expect((captured!.init.headers as any)['Content-Type']).toBe('application/json')
     expect(captured!.init.method).toBe('POST')
     expect(JSON.parse(captured!.init.body as string)).toEqual({ namespace: 'n', key: 'k' })
