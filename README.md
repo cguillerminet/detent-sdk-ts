@@ -37,7 +37,7 @@ const stats = await rg.getStats({ namespace: 'api' })
 
 | Option      | Default                    | Notes                                            |
 |-------------|----------------------------|--------------------------------------------------|
-| `apiKey`    | — (required)               | `rg_live_…` / `rg_test_…`                         |
+| `apiKey`    | — (required)               | `dt_live_…` / `dt_test_…`                         |
 | `baseUrl`   | `https://api.detent.dev`   | Override for self-host / tests                    |
 | `timeoutMs` | `1000`                     | Client-side transport timeout                     |
 | `failMode`  | `'open'`                   | `'open'` allows, `'closed'` denies on transport error |

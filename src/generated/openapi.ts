@@ -34,6 +34,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/billing/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /dashboard/billing/reconcile` — fast-path subscription sync on the
+         *     checkout success redirect. Retrieves the Checkout Session, verifies it
+         *     belongs to the caller, and — only if it was `paid` — fills in the account's
+         *     subscription status. Idempotent and safe alongside the webhook: it sets a
+         *     status only when none is set yet, so it never regresses a later
+         *     past_due/canceled the webhook may have written, and doesn't stamp
+         *     `last_stripe_event_at` (so subsequent webhook events still apply in order).
+         */
+        post: operations["reconcile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dashboard/billing/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /dashboard/billing/usage` — the session account's month rollup, for the
+         *     billing quota-to-upgrade nudge. 404s when billing is disabled (consistent
+         *     with the other `/dashboard/billing/*` routes); gated on the flag only, so it
+         *     needs no Stripe client.
+         */
+        get: operations["dashboard_billing_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/keys": {
         parameters: {
             query?: never;
@@ -110,6 +157,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/namespaces/{ns}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /dashboard/namespaces/{ns}` — remove a namespace and its history for
+         *     the session account. Idempotent: returns 204 whether or not it existed (a
+         *     concurrent usage flush may already have removed or recreated it, and the SPA
+         *     reloads the list afterward). Purges the default rule and `usage_daily`
+         *     history; leaves `usage_monthly` (the per-account billing meter) and Redis TTL
+         *     counters untouched. See
+         *     docs/superpowers/specs/2026-07-03-dashboard-namespace-delete-design.md.
+         */
+        delete: operations["delete_namespace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/namespaces/{ns}/rules": {
         parameters: {
             query?: never;
@@ -166,6 +238,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/passkeys/add/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /dashboard/passkeys/add/finish` — complete the additional-passkey ceremony.
+         * @description Step-up gated. Verifies the WebAuthn registration, CAS-claims the ceremony,
+         *     stores the credential with the given name (or a User-Agent-derived fallback),
+         *     emails a security notice, and returns the new row.
+         */
+        post: operations["add_passkey_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dashboard/passkeys/add/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /dashboard/passkeys/add/start` — begin enrolling an additional passkey.
+         * @description Step-up gated (`SudoAuth`). Excludes the account's existing credentials so a
+         *     second passkey can't be minted on an authenticator already enrolled.
+         */
+        post: operations["add_passkey_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/passkeys/{id}": {
         parameters: {
             query?: never;
@@ -184,7 +299,13 @@ export interface paths {
         delete: operations["delete_passkey"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * `PATCH /dashboard/passkeys/{id}` — rename an owned passkey.
+         * @description Cosmetic, so access token only (no step-up). Name is trimmed and must be
+         *     1–64 characters. Returns the updated row, or 404 if the id is not this
+         *     account's.
+         */
+        patch: operations["rename_passkey"];
         trace?: never;
     };
     "/dashboard/rules": {
@@ -364,6 +485,11 @@ export interface components {
         AccountResponse: {
             current_period_end?: string | null;
             email: string;
+            /**
+             * @description True once a Stripe customer exists — the SPA routes plan changes to the
+             *     Billing Portal (existing customer) vs. Checkout (new).
+             */
+            has_billing_customer: boolean;
             id: string;
             in_good_standing: boolean;
             plan: string;
@@ -412,6 +538,13 @@ export interface components {
              */
             reset_ms: number;
         };
+        AddPasskeyFinishBody: {
+            /** Format: uuid */
+            challenge_id: string;
+            credential: Record<string, never>;
+            /** @description Optional device name (1–64 chars). Empty/absent → derived from User-Agent. */
+            name?: string | null;
+        };
         /**
          * @description Response body for both billing session endpoints: the Stripe-hosted URL to
          *     redirect the browser to.
@@ -429,7 +562,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             id: string;
-            /** @description The raw `rg_live_…` secret — shown ONCE, never retrievable again. */
+            /** @description The raw `dt_live_…` secret — shown ONCE, never retrievable again. */
             key: string;
             name?: string | null;
             prefix: string;
@@ -516,6 +649,9 @@ export interface components {
             namespace: string;
             rule?: null | components["schemas"]["Rule"];
         };
+        ReconcileBody: {
+            session_id: string;
+        };
         /** @description Response for `DELETE /v1/leases/{lease_id}`. */
         ReleaseResponse: {
             /**
@@ -525,6 +661,10 @@ export interface components {
             active: number;
             /** @description Whether a held lease was removed (false if already expired/released). */
             released: boolean;
+        };
+        RenamePasskeyBody: {
+            /** @description New display name (1–64 characters after trimming). */
+            name: string;
         };
         /**
          * @description The default rule for a namespace. `limit`/`window_ms` are `u64` on the wire
@@ -667,6 +807,93 @@ export interface operations {
             };
             /** @description No billing customer yet — subscribe first */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reconcile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileBody"];
+            };
+        };
+        responses: {
+            /** @description Reconciled (or nothing to do yet) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session does not belong to this account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Billing is not enabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dashboard_billing_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account-wide current-month usage + soft quota (§4.2) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthSummary"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Billing is not enabled */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -844,6 +1071,36 @@ export interface operations {
             };
         };
     };
+    delete_namespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace name */
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace deleted (idempotent) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     put_rule: {
         parameters: {
             query?: never;
@@ -959,6 +1216,108 @@ export interface operations {
             };
         };
     };
+    add_passkey_finish: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fresh WebAuthn step-up token (§3.5) */
+                "X-Step-Up-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddPasskeyFinishBody"];
+            };
+        };
+        responses: {
+            /** @description Passkey enrolled */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialRow"];
+                };
+            };
+            /** @description Bad ceremony state or name too long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing/invalid access or step-up token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not this account's add-passkey ceremony */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authenticator already enrolled (duplicate credential) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Ceremony already completed */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_passkey_start: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Fresh WebAuthn step-up token (§3.5) */
+                "X-Step-Up-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WebAuthn creation options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing/invalid access or step-up token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     delete_passkey: {
         parameters: {
             query?: never;
@@ -992,6 +1351,60 @@ export interface operations {
             };
             /** @description Refused: would leave the account with no second factor */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rename_passkey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenamePasskeyBody"];
+            };
+        };
+        responses: {
+            /** @description Passkey renamed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialRow"];
+                };
+            };
+            /** @description Name empty or longer than 64 chars */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such passkey for this account */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
