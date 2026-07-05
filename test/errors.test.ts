@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DetentError, DetentApiError, DetentTransportError, DetentLeaseDeniedError,
+  DetentError, DetentApiError, DetentQuotaExceededError,
+  DetentTransportError, DetentLeaseDeniedError,
 } from '../src/errors'
 
 describe('errors', () => {
@@ -17,6 +18,15 @@ describe('errors', () => {
     const e = new DetentTransportError('network', cause)
     expect(e).toBeInstanceOf(DetentError)
     expect(e.cause).toBe(cause)
+  })
+
+  it('DetentQuotaExceededError is a DetentApiError with status 429', () => {
+    const e = new DetentQuotaExceededError({ error: 'monthly_hard_cap' })
+    expect(e).toBeInstanceOf(DetentApiError)
+    expect(e).toBeInstanceOf(DetentError)
+    expect(e.status).toBe(429)
+    expect(e.body.error).toBe('monthly_hard_cap')
+    expect(e.name).toBe('DetentQuotaExceededError')
   })
 
   it('DetentLeaseDeniedError carries the acquire result', () => {

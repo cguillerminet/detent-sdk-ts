@@ -16,6 +16,14 @@ describe('acquire()/release()', () => {
     expect(r).toMatchObject({ allowed: true, leaseId: 'LID', active: 1, limit: 5, resetMs: 0 })
   })
 
+  it('acquire() throws DetentQuotaExceededError on a 429 monthly_hard_cap', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'monthly_hard_cap' }), { status: 429 })) as any)
+    const rg = new Detent({ apiKey: 'x' })
+    await expect(rg.acquire({ namespace: 'n', key: 'k' })).rejects.toMatchObject({
+      name: 'DetentQuotaExceededError', status: 429,
+    })
+  })
+
   it('release() issues DELETE to the lease path and returns result', async () => {
     let captured: any
     mockFetch((async (url: any, init: any) => {

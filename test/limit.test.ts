@@ -71,4 +71,21 @@ describe('limit()', () => {
     const rg = new Detent({ apiKey: 'x', failMode: 'open' })
     await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({ name: 'DetentApiError', status: 400 })
   })
+
+  it('429 monthly_hard_cap throws DetentQuotaExceededError, never fail-open', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'monthly_hard_cap' }), { status: 429 })) as any)
+    // failMode:open must NOT suppress the hard cap — it is a deliberate block.
+    const rg = new Detent({ apiKey: 'x', failMode: 'open' })
+    await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({
+      name: 'DetentQuotaExceededError', status: 429,
+    })
+  })
+
+  it('a 429 with a different body stays a generic DetentApiError', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'slow down' }), { status: 429 })) as any)
+    const rg = new Detent({ apiKey: 'x' })
+    await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({
+      name: 'DetentApiError', status: 429,
+    })
+  })
 })
