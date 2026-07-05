@@ -45,3 +45,22 @@ const stats = await rg.getStats({ namespace: 'api' })
 
 `limit()` never throws on a transport error or a 5xx server error — it returns `{ degraded: true }` and respects `failMode`.
 Only 4xx client errors (bad key, plan gate, unknown rule, malformed request) throw `DetentApiError`.
+
+When an account exceeds its monthly hard ceiling the API returns `429`, and `limit()`/`acquire()`
+throw **`DetentQuotaExceededError`** (a `DetentApiError` subclass, so it carries `status`/`body`). It is
+**never** failed open — the cap is a deliberate block, not a transport degradation. Catch it to alert
+or prompt an upgrade:
+
+```ts
+import { DetentQuotaExceededError } from '@detent/sdk'
+
+try {
+  const { allowed } = await detent.limit({ namespace: 'api', key: userId })
+  if (!allowed) return res.status(429).end() // routine per-key rate deny
+} catch (err) {
+  if (err instanceof DetentQuotaExceededError) {
+    // account is over its monthly ceiling — page ops / show an upgrade nudge
+  }
+  throw err
+}
+```

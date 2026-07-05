@@ -1,4 +1,4 @@
-import { DetentApiError, DetentTransportError } from './errors'
+import { DetentApiError, DetentQuotaExceededError, DetentTransportError } from './errors'
 import { acquireLease, releaseLease, withLease } from './leases'
 import { getStats } from './stats'
 import type {
@@ -47,6 +47,12 @@ export class Detent {
           parsed = (await res.json()) as { error: string }
         } catch {
           parsed = { error: res.statusText || `HTTP ${res.status}` }
+        }
+        // The monthly hard cap (§4.2) is a 429 the caller should distinguish
+        // from a routine 4xx — surface it as a typed error (both limit() and
+        // acquire() route through here, so both get it).
+        if (res.status === 429 && parsed.error === 'monthly_hard_cap') {
+          throw new DetentQuotaExceededError(parsed)
         }
         throw new DetentApiError(res.status, parsed)
       }
