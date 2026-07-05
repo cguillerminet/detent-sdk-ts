@@ -1510,6 +1510,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Monthly hard ceiling exceeded (§4.2 anti-abuse cap) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     release_lease: {
@@ -1604,6 +1613,15 @@ export interface operations {
             };
             /** @description Algorithm not available on the caller's plan (§4.3) */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Monthly hard ceiling exceeded (§4.2 anti-abuse cap) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
