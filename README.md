@@ -46,6 +46,12 @@ const stats = await rg.getStats({ namespace: 'api' })
 `limit()` never throws on a transport error or a 5xx server error — it returns `{ degraded: true }` and respects `failMode`.
 Only 4xx client errors (bad key, plan gate, unknown rule, malformed request) throw `DetentApiError`.
 
+**`acquire()` / `withLease()` do *not* fail open** — unlike `limit()`, they throw `DetentTransportError`
+when Detent is unreachable, regardless of `failMode`. A failed-open acquire would return no `leaseId`, so
+the work would run holding a slot it can never release (a lease leak). Propagating the error lets you decide
+whether to proceed or shed load. Note this is distinct from the server's own Redis fail-open, where the API
+still returns `200` with `allowed: true` and a `null` leaseId.
+
 When an account exceeds its monthly hard ceiling the API returns `429`, and `limit()`/`acquire()`
 throw **`DetentQuotaExceededError`** (a `DetentApiError` subclass, so it carries `status`/`body`). It is
 **never** failed open — the cap is a deliberate block, not a transport degradation. Catch it to alert
