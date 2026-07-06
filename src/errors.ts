@@ -25,13 +25,13 @@ export class DetentApiError extends DetentError {
   readonly status: number
   readonly body: { error: string; code?: string }
   /** Stable machine error code, when the API tagged this error with one. */
-  readonly code?: DetentErrorCode
+  readonly code?: DetentErrorCode | (string & {})
   constructor(status: number, body: { error: string; code?: string }) {
     super(`Detent API error ${status}: ${body.error}`)
     this.name = 'DetentApiError'
     this.status = status
     this.body = body
-    this.code = body.code as DetentErrorCode | undefined
+    this.code = body.code ?? undefined
   }
 }
 

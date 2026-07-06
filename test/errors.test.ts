@@ -66,5 +66,6 @@ describe('errors', () => {
     const e = apiErrorFrom(404, { error: 'not found', code: 'rule_not_found' })
     expect(e.constructor).toBe(DetentApiError)
     expect(e.status).toBe(404)
+    expect(e.code).toBe('rule_not_found')
   })
 })
