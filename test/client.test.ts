@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { Detent } from '../src/client'
-import { DetentApiError, DetentTransportError } from '../src/errors'
+import { DetentApiError, DetentTransportError, DetentAlgorithmNotOnPlanError } from '../src/errors'
 
 function mockFetch(impl: typeof fetch) {
   vi.stubGlobal('fetch', impl)
@@ -47,5 +47,17 @@ describe('Detent.request', () => {
       })) as any)
     const rg = new Detent({ apiKey: 'x', timeoutMs: 5 })
     await expect((rg as any).request('POST', '/v1/limit', {})).rejects.toBeInstanceOf(DetentTransportError)
+  })
+
+  it('surfaces a coded 403 as DetentAlgorithmNotOnPlanError', async () => {
+    mockFetch((async () =>
+      new Response(
+        JSON.stringify({ error: 'algorithm not on your plan', code: 'algorithm_not_on_plan' }),
+        { status: 403 },
+      )) as any)
+    const rg = new Detent({ apiKey: 'x' })
+    await expect((rg as any).request('POST', '/v1/limit', {})).rejects.toBeInstanceOf(
+      DetentAlgorithmNotOnPlanError,
+    )
   })
 })
