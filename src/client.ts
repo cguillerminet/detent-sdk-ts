@@ -1,4 +1,4 @@
-import { DetentApiError, DetentQuotaExceededError, DetentTransportError } from './errors'
+import { DetentApiError, DetentTransportError, apiErrorFrom } from './errors'
 import { acquireLease, releaseLease, withLease } from './leases'
 import { getStats } from './stats'
 import type {
@@ -42,19 +42,16 @@ export class Detent {
         signal: controller.signal,
       })
       if (!res.ok) {
-        let parsed: { error: string }
+        let parsed: { error: string; code?: string }
         try {
-          parsed = (await res.json()) as { error: string }
+          parsed = (await res.json()) as { error: string; code?: string }
         } catch {
           parsed = { error: res.statusText || `HTTP ${res.status}` }
         }
-        // The monthly hard cap (§4.2) is a 429 the caller should distinguish
-        // from a routine 4xx — surface it as a typed error (both limit() and
-        // acquire() route through here, so both get it).
-        if (res.status === 429 && parsed.error === 'monthly_hard_cap') {
-          throw new DetentQuotaExceededError(parsed)
-        }
-        throw new DetentApiError(res.status, parsed)
+        // One factory maps status+code to the most specific typed error
+        // (quota, payment, algorithm-not-on-plan, validation) — both limit()
+        // and acquire() route through here, so both get it.
+        throw apiErrorFrom(res.status, parsed)
       }
       return (await res.json()) as T
     } catch (cause) {

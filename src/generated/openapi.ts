@@ -137,7 +137,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** `PATCH /dashboard/me` — update mutable account settings (currently just locale). */
+        patch: operations["update_me"];
         trace?: never;
     };
     "/dashboard/namespaces": {
@@ -182,6 +183,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/namespaces/{ns}/leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /dashboard/namespaces/{ns}/leases` — live active-lease aggregation for
+         *     the session account's namespace. Fail-closed: no limiter configured or a
+         *     Redis error surfaces as `503`, never a fabricated zero snapshot.
+         */
+        get: operations["dashboard_leases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/namespaces/{ns}/rules": {
         parameters: {
             query?: never;
@@ -193,8 +215,9 @@ export interface paths {
         /**
          * `PUT /dashboard/namespaces/{ns}/rules` — create or replace the namespace's
          *     default rule. Idempotent; also materializes the namespace. Validation mirrors
-         *     `rules::create_rule`, plus a `concurrent_limit` guard (it is lease-based, not
-         *     a `/v1/limit` default — see DECISIONS.md §2.3 / §4.3).
+         *     `rules::create_rule`. `concurrent_limit` is accepted here (Pro/Scale, plan-gated
+         *     below); it is read by the lease engine as the namespace's fallback limit/TTL
+         *     (see DECISIONS.md §2.3 / §4.3).
          */
         put: operations["put_rule"];
         post?: never;
@@ -492,6 +515,8 @@ export interface components {
             has_billing_customer: boolean;
             id: string;
             in_good_standing: boolean;
+            /** @description UI/email language for this account: "fr" | "en". */
+            locale: string;
             plan: string;
             subscription_status?: string | null;
             /** @description RFC3339; null while no trial / already subscribed past trial. */
@@ -583,10 +608,26 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
-        /** @description The JSON body returned for every error response: `{ "error": "<message>" }`. */
+        /**
+         * @description The JSON body returned for every error response: `{ "error": "<message>" }`,
+         *     optionally with a stable machine `code` (`{ "error": ..., "code": ... }`).
+         *     The `code` lets clients map an error to their own localized copy instead of
+         *     showing the English `error` string; it is present only for errors we've
+         *     assigned a stable code, and omitted otherwise.
+         */
         ErrorResponse: {
+            /**
+             * @description Stable machine-readable error code for client-side localization, when one
+             *     is defined for this error (e.g. `key_not_found`, `algorithm_not_on_plan`).
+             */
+            code?: string | null;
             /** @description Human-readable error message. Never contains internal/driver detail. */
             error: string;
+        };
+        KeyActiveOut: {
+            /** Format: int64 */
+            active: number;
+            key: string;
         };
         KeySummary: {
             /** Format: date-time */
@@ -598,6 +639,20 @@ export interface components {
             prefix: string;
             /** Format: date-time */
             revoked_at?: string | null;
+        };
+        LeasesResponse: {
+            /** Format: int64 */
+            active_keys: number;
+            /**
+             * Format: int64
+             * @description The namespace's concurrent_limit rule limit (per-key slots), or null.
+             */
+            limit?: number | null;
+            namespace: string;
+            top_keys: components["schemas"]["KeyActiveOut"][];
+            /** Format: int64 */
+            total_active: number;
+            truncated: boolean;
         };
         /**
          * @description Request body for `POST /v1/limit`. The wire format uses `window_ms`
@@ -634,6 +689,11 @@ export interface components {
          *     namespaces). This is the data source for the dashboard quota banner.
          */
         MonthSummary: {
+            /**
+             * Format: int64
+             * @description §4.2 anti-abuse ceiling for this plan; `None` when unconfigured.
+             */
+            hard_cap?: number | null;
             month: string;
             over_quota: boolean;
             /** Format: int64 */
@@ -698,6 +758,9 @@ export interface components {
             namespace: string;
             /** Format: int64 */
             total: number;
+        };
+        UpdateMeBody: {
+            locale: string;
         };
         WebhookConfig: {
             url: string;
@@ -1042,6 +1105,48 @@ export interface operations {
             };
         };
     };
+    update_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeBody"];
+            };
+        };
+        responses: {
+            /** @description The updated account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountResponse"];
+                };
+            };
+            /** @description Unsupported locale */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_namespaces: {
         parameters: {
             query?: never;
@@ -1101,6 +1206,47 @@ export interface operations {
             };
         };
     };
+    dashboard_leases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace name */
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Live active-lease snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeasesResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Redis unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     put_rule: {
         parameters: {
             query?: never;
@@ -1126,7 +1272,7 @@ export interface operations {
                     "application/json": components["schemas"]["Rule"];
                 };
             };
-            /** @description limit/window_ms invalid, or concurrent_limit */
+            /** @description limit/window_ms invalid */
             400: {
                 headers: {
                     [name: string]: unknown;
