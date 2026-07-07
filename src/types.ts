@@ -5,7 +5,7 @@ export type FailMode = 'open' | 'closed'
 
 export interface DetentConfig {
   apiKey: string
-  baseUrl?: string          // default 'https://api.detent.dev'
+  baseUrl?: string          // default 'https://api.detent.fr'
   timeoutMs?: number        // default 1000
   failMode?: FailMode       // default 'open'
   onError?: (err: DetentError) => void

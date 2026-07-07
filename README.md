@@ -3,7 +3,7 @@
 [![CI](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/cguillerminet/detent-sdk-ts/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@detent/sdk.svg)](https://www.npmjs.com/package/@detent/sdk)
 
-Typed TypeScript client for the [Detent](https://detent.dev) rate-limiting API.
+Typed TypeScript client for the [Detent](https://detent.fr) rate-limiting API.
 
 > Status: pre-1.0 — the API may change between minor versions until 1.0.0.
 
@@ -116,7 +116,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
 | Option      | Default                    | Notes                                            |
 |-------------|----------------------------|--------------------------------------------------|
 | `apiKey`    | — (required)               | `dt_live_…` / `dt_test_…`                         |
-| `baseUrl`   | `https://api.detent.dev`   | Override for self-host / tests                    |
+| `baseUrl`   | `https://api.detent.fr`   | Override for self-host / tests                    |
 | `timeoutMs` | `1000`                     | Client-side transport timeout                     |
 | `failMode`  | `'open'`                   | `'open'` allows, `'closed'` denies on transport error |
 | `onError`   | —                          | Called on transport errors and 5xx responses before fail-open/closed |
