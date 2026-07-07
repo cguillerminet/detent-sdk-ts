@@ -45,7 +45,7 @@ describe('acquire()/release()', () => {
     const rg = new Detent({ apiKey: 'x' })
     const r = await rg.acquire({ namespace: 'n', key: 'k' })
     await r.release()
-    expect(calls).toEqual(['POST https://api.detent.dev/v1/leases']) // no DELETE
+    expect(calls).toEqual(['POST https://api.detent.fr/v1/leases']) // no DELETE
   })
 })
 

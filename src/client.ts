@@ -8,7 +8,7 @@ import type {
 } from './types'
 import type { components } from './generated/openapi'
 
-const DEFAULT_BASE_URL = 'https://api.detent.dev'
+const DEFAULT_BASE_URL = 'https://api.detent.fr'
 const DEFAULT_TIMEOUT_MS = 1000
 
 export class Detent {
