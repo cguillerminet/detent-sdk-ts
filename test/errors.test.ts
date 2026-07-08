@@ -3,6 +3,7 @@ import {
   DetentError, DetentApiError, DetentQuotaExceededError,
   DetentPaymentRequiredError, DetentAlgorithmNotOnPlanError,
   DetentInvalidRequestError, DetentUnknownAlgorithmError, DetentInvalidDurationError,
+  DetentKeyTypeConflictError,
   DetentTransportError, DetentLeaseDeniedError, apiErrorFrom,
 } from '../src/errors'
 
@@ -37,6 +38,15 @@ describe('errors', () => {
     expect(e.result.active).toBe(5)
   })
 
+  it('DetentKeyTypeConflictError is a DetentApiError with status 409', () => {
+    const e = new DetentKeyTypeConflictError({ error: 'key_type_conflict' })
+    expect(e).toBeInstanceOf(DetentApiError)
+    expect(e).toBeInstanceOf(DetentError)
+    expect(e.status).toBe(409)
+    expect(e.body.error).toBe('key_type_conflict')
+    expect(e.name).toBe('DetentKeyTypeConflictError')
+  })
+
   it('apiErrorFrom dispatches each public-surface code to its subclass', () => {
     const cases: Array<[string, number, string]> = [
       ['payment_required', 402, 'DetentPaymentRequiredError'],
@@ -45,6 +55,7 @@ describe('errors', () => {
       ['invalid_request', 400, 'DetentInvalidRequestError'],
       ['unknown_algorithm', 400, 'DetentUnknownAlgorithmError'],
       ['invalid_duration', 400, 'DetentInvalidDurationError'],
+      ['key_type_conflict', 409, 'DetentKeyTypeConflictError'],
     ]
     for (const [code, status, name] of cases) {
       const e = apiErrorFrom(status, { error: 'human message', code })

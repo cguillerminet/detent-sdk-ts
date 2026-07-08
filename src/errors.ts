@@ -20,6 +20,7 @@ export type DetentErrorCode =
   | 'invalid_request'
   | 'unknown_algorithm'
   | 'invalid_duration'
+  | 'key_type_conflict'
 
 export class DetentApiError extends DetentError {
   readonly status: number
@@ -91,6 +92,20 @@ export class DetentInvalidDurationError extends DetentApiError {
 }
 
 /**
+ * Thrown when the `(namespace, key)` already holds state for a different
+ * rate-limit algorithm — the API returned `409 { code: "key_type_conflict" }`
+ * from `POST /v1/limit` or `POST /v1/leases`. This is a hard deny on the
+ * request itself, not a rate-limit verdict, and it is NEVER failed open
+ * (fail-open only applies to transport errors and 5xx responses).
+ */
+export class DetentKeyTypeConflictError extends DetentApiError {
+  constructor(body: { error: string; code?: string }) {
+    super(409, body)
+    this.name = 'DetentKeyTypeConflictError'
+  }
+}
+
+/**
  * Build the most specific error for a 4xx/5xx response. Keys off the machine
  * `code` (#56/#57); falls back to the legacy `error` string so an SDK pointed
  * at an API predating the gate `code` still yields the typed quota/payment
@@ -113,6 +128,8 @@ export function apiErrorFrom(
       return new DetentUnknownAlgorithmError(body)
     case 'invalid_duration':
       return new DetentInvalidDurationError(body)
+    case 'key_type_conflict':
+      return new DetentKeyTypeConflictError(body)
     default:
       return new DetentApiError(status, body)
   }

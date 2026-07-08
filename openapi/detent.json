@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Detent API",
-    "description": "Rate Limiter as a Service — the public /v1 surface. POST /v1/limit always returns HTTP 200; the `allowed` field carries the verdict (DECISIONS.md §2.2). Authenticate with an `dt_live_`/`dt_test_` API key as a bearer token. The /metrics endpoint serves Prometheus text and is not modeled here.",
+    "description": "Rate Limiter as a Service — the public /v1 surface. POST /v1/limit always returns HTTP 200; the `allowed` field carries the verdict. Authenticate with a `dt_live_`/`dt_test_` API key as a bearer token.",
     "contact": {
       "name": "Detent"
     },
@@ -1005,7 +1005,8 @@
         "tags": [
           "leases"
         ],
-        "summary": "`POST /v1/leases` — acquire a concurrent-limit lease (`DECISIONS.md §1.3`).",
+        "summary": "Acquire a concurrency lease for a `(namespace, key)`.",
+        "description": "Returns `allowed` with a `lease_id` when a slot is free; release it with\n`DELETE /v1/leases/{lease_id}` when the work finishes.",
         "operationId": "acquire_lease",
         "requestBody": {
           "content": {
@@ -1048,8 +1049,28 @@
               }
             }
           },
+          "402": {
+            "description": "Billing not in good standing (code `payment_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "concurrent_limit is not available on the caller's plan (§4.3)",
+            "description": "concurrent_limit is not available on the caller's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This namespace+key already holds state for a different algorithm (code `key_type_conflict`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1059,7 +1080,7 @@
             }
           },
           "429": {
-            "description": "Monthly hard ceiling exceeded (§4.2 anti-abuse cap)",
+            "description": "Monthly anti-abuse ceiling exceeded (code `monthly_hard_cap`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1081,7 +1102,8 @@
         "tags": [
           "leases"
         ],
-        "summary": "`DELETE /v1/leases/{lease_id}` — release a lease. Idempotent. Unlike acquire,\na Redis outage is a `503` (NOT fail-open): a false \"released\" would mislead.",
+        "summary": "Release a concurrency lease. Idempotent.",
+        "description": "Unlike acquire, a brief service outage returns `503` rather than failing\nopen, so a client never sees a false \"released\".",
         "operationId": "release_lease",
         "parameters": [
           {
@@ -1126,7 +1148,7 @@
             }
           },
           "503": {
-            "description": "Redis unavailable",
+            "description": "Service temporarily unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -1148,7 +1170,8 @@
         "tags": [
           "limit"
         ],
-        "summary": "`POST /v1/limit` handler. `AuthContext` is injected by the auth middleware\n(`crate::auth::require_auth`); the tenant `account_id` comes from the\nvalidated key, never the request body (`DECISIONS.md §3.3`).",
+        "summary": "Check a rate limit for a `(namespace, key)`.",
+        "description": "Returns a verdict — `allowed`, plus the remaining budget and reset time. The\ntenant is taken from the authenticated API key, never the request body.",
         "operationId": "limit",
         "requestBody": {
           "content": {
@@ -1162,7 +1185,7 @@
         },
         "responses": {
           "200": {
-            "description": "Verdict — always 200, even when denied (DECISIONS.md §2.2)",
+            "description": "Verdict — always 200, even when the request is denied",
             "content": {
               "application/json": {
                 "schema": {
@@ -1191,8 +1214,28 @@
               }
             }
           },
+          "402": {
+            "description": "Billing not in good standing (code `payment_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "Algorithm not available on the caller's plan (§4.3)",
+            "description": "Algorithm not available on the caller's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This namespace+key already holds state for a different algorithm (code `key_type_conflict`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1202,7 +1245,7 @@
             }
           },
           "429": {
-            "description": "Monthly hard ceiling exceeded (§4.2 anti-abuse cap)",
+            "description": "Monthly anti-abuse ceiling exceeded (code `monthly_hard_cap`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1224,7 +1267,8 @@
         "tags": [
           "keys"
         ],
-        "summary": "`DELETE /v1/namespaces/{ns}/keys/{key}` — reset the limiter counter for one\nkey. 204 (idempotent) on success; 503 if Redis is unavailable (NOT\nfail-open — a silent success while Redis is down would mislead the operator).",
+        "summary": "Reset the limiter counter for one key.",
+        "description": "Returns `204` (idempotent) on success. A brief service outage returns `503`\nrather than a silent success.",
         "operationId": "reset_key",
         "parameters": [
           {
@@ -1271,7 +1315,7 @@
             }
           },
           "503": {
-            "description": "Redis unavailable (NOT fail-open here)",
+            "description": "Service temporarily unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -1403,7 +1447,7 @@
             }
           },
           "403": {
-            "description": "Algorithm not available on the caller's plan (§4.3)",
+            "description": "Algorithm not available on the caller's plan",
             "content": {
               "application/json": {
                 "schema": {
@@ -1425,7 +1469,8 @@
         "tags": [
           "stats"
         ],
-        "summary": "`GET /v1/namespaces/{ns}/stats` — aggregated daily usage from Postgres.",
+        "summary": "Aggregated daily usage plus the current month and quota rollup.",
+        "description": "Usage is aggregated, not real-time.",
         "operationId": "get_stats",
         "parameters": [
           {
@@ -1440,7 +1485,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Aggregated daily usage + month/quota rollup (§4.2)",
+            "description": "Aggregated daily usage + current month and quota rollup",
             "content": {
               "application/json": {
                 "schema": {

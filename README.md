@@ -148,3 +148,23 @@ try {
   throw err
 }
 ```
+
+When a `(namespace, key)` already holds state for a different rate-limit algorithm, the API
+returns `409` (code `key_type_conflict`) from **both** `POST /v1/limit` and `POST /v1/leases`, and
+`limit()`/`acquire()` throw **`DetentKeyTypeConflictError`** (a `DetentApiError` subclass). This is
+a hard deny on the request itself — not a rate-limit verdict — and it is **never** failed open,
+same as the quota/payment gates:
+
+```ts
+import { DetentKeyTypeConflictError } from '@detent/sdk'
+
+try {
+  const { allowed } = await detent.limit({ namespace: 'api', key: userId, algorithm: 'token_bucket' })
+  if (!allowed) return res.status(429).end()
+} catch (err) {
+  if (err instanceof DetentKeyTypeConflictError) {
+    // this key was already used with a different algorithm — pick a new key or namespace
+  }
+  throw err
+}
+```
