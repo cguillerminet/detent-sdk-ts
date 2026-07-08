@@ -377,7 +377,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** `POST /v1/leases` — acquire a concurrent-limit lease (`DECISIONS.md §1.3`). */
+        /**
+         * Acquire a concurrency lease for a `(namespace, key)`.
+         * @description Returns `allowed` with a `lease_id` when a slot is free; release it with
+         *     `DELETE /v1/leases/{lease_id}` when the work finishes.
+         */
         post: operations["acquire_lease"];
         delete?: never;
         options?: never;
@@ -396,8 +400,9 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * `DELETE /v1/leases/{lease_id}` — release a lease. Idempotent. Unlike acquire,
-         *     a Redis outage is a `503` (NOT fail-open): a false "released" would mislead.
+         * Release a concurrency lease. Idempotent.
+         * @description Unlike acquire, a brief service outage returns `503` rather than failing
+         *     open, so a client never sees a false "released".
          */
         delete: operations["release_lease"];
         options?: never;
@@ -415,9 +420,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /v1/limit` handler. `AuthContext` is injected by the auth middleware
-         *     (`crate::auth::require_auth`); the tenant `account_id` comes from the
-         *     validated key, never the request body (`DECISIONS.md §3.3`).
+         * Check a rate limit for a `(namespace, key)`.
+         * @description Returns a verdict — `allowed`, plus the remaining budget and reset time. The
+         *     tenant is taken from the authenticated API key, never the request body.
          */
         post: operations["limit"];
         delete?: never;
@@ -437,9 +442,9 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * `DELETE /v1/namespaces/{ns}/keys/{key}` — reset the limiter counter for one
-         *     key. 204 (idempotent) on success; 503 if Redis is unavailable (NOT
-         *     fail-open — a silent success while Redis is down would mislead the operator).
+         * Reset the limiter counter for one key.
+         * @description Returns `204` (idempotent) on success. A brief service outage returns `503`
+         *     rather than a silent success.
          */
         delete: operations["reset_key"];
         options?: never;
@@ -472,7 +477,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /v1/namespaces/{ns}/stats` — aggregated daily usage from Postgres. */
+        /**
+         * Aggregated daily usage plus the current month and quota rollup.
+         * @description Usage is aggregated, not real-time.
+         */
         get: operations["get_stats"];
         put?: never;
         post?: never;
@@ -1647,7 +1655,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description concurrent_limit is not available on the caller's plan (§4.3) */
+            /** @description Billing not in good standing (code `payment_required`) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description concurrent_limit is not available on the caller's plan */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1656,7 +1673,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Monthly hard ceiling exceeded (§4.2 anti-abuse cap) */
+            /** @description This namespace+key already holds state for a different algorithm (code `key_type_conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Monthly anti-abuse ceiling exceeded (code `monthly_hard_cap`) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1706,7 +1732,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Redis unavailable */
+            /** @description Service temporarily unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1730,7 +1756,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Verdict — always 200, even when denied (DECISIONS.md §2.2) */
+            /** @description Verdict — always 200, even when the request is denied */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1757,7 +1783,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Algorithm not available on the caller's plan (§4.3) */
+            /** @description Billing not in good standing (code `payment_required`) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Algorithm not available on the caller's plan */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1766,7 +1801,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Monthly hard ceiling exceeded (§4.2 anti-abuse cap) */
+            /** @description This namespace+key already holds state for a different algorithm (code `key_type_conflict`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Monthly anti-abuse ceiling exceeded (code `monthly_hard_cap`) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1816,7 +1860,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Redis unavailable (NOT fail-open here) */
+            /** @description Service temporarily unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1911,7 +1955,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Algorithm not available on the caller's plan (§4.3) */
+            /** @description Algorithm not available on the caller's plan */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1934,7 +1978,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Aggregated daily usage + month/quota rollup (§4.2) */
+            /** @description Aggregated daily usage + current month and quota rollup */
             200: {
                 headers: {
                     [name: string]: unknown;

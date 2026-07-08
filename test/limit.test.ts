@@ -81,6 +81,15 @@ describe('limit()', () => {
     })
   })
 
+  it('409 key_type_conflict throws DetentKeyTypeConflictError, never fail-open', async () => {
+    mockFetch((async () => new Response(JSON.stringify({ error: 'key_type_conflict', code: 'key_type_conflict' }), { status: 409 })) as any)
+    // failMode:open must NOT suppress a hard deny — reused key/algorithm state conflict.
+    const rg = new Detent({ apiKey: 'x', failMode: 'open' })
+    await expect(rg.limit({ namespace: 'api', key: 'u1' })).rejects.toMatchObject({
+      name: 'DetentKeyTypeConflictError', status: 409, code: 'key_type_conflict',
+    })
+  })
+
   it('a 429 with a different body stays a generic DetentApiError', async () => {
     mockFetch((async () => new Response(JSON.stringify({ error: 'slow down' }), { status: 429 })) as any)
     const rg = new Detent({ apiKey: 'x' })
